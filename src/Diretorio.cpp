@@ -59,12 +59,13 @@ std::string sgbd::Diretorio::operacao (sgbd::Operacao operacao, int chave) {
     if (operacao == sgbd::Operacao::INC) {
 
         std::vector<sgbd::EntradaBucket> novasEntradasBucket;
+        bool duplicouDir = false; // Váriavel de controle que identifica se o diretório foi duplicado.
 
         // Abre o arquivo CSV para varredura.
         std::ifstream arquivo(this->arquivoCSV);
         if (!arquivo) {
 
-            throw std::invalid_argument(std::string("Erro ao abrir o arquivo CSV: ") + this->arquivoCSV + std::string("\n"));
+            throw std::runtime_error(std::string("Erro ao abrir o arquivo CSV: ") + this->arquivoCSV);
 
         }
 
@@ -103,6 +104,7 @@ std::string sgbd::Diretorio::operacao (sgbd::Operacao operacao, int chave) {
                 if (this->referencias[indiceBucket].pl == this->getPG()) {
 
                     this->duplicar();
+                    duplicouDir = true;
 
                 }
 
@@ -174,6 +176,12 @@ std::string sgbd::Diretorio::operacao (sgbd::Operacao operacao, int chave) {
 
         }
 
+        // Formato "INC:x/<profundidade global>,<profundidade local>"
+        info = std::string("INC:") + std::to_string(chave) + '/' + std::to_string(this->getPG()) + ',' + std::to_string(this->referencias[indiceBucket].pl);
+
+        // Caso o diretório tenha sido duplicado, adiciona uma linha no formato "DUP_DIR:/<profundidade global>,<profundidade local>"
+        info = info + "\nDUP_DIR:/" + std::to_string(this->getPG()) + ',' + std::to_string(this->referencias[indiceBucket].pl);
+
     } else {
 
         std::size_t quantTuplas; // Quantidade de tuplas removidas ou selecionadas
@@ -187,12 +195,15 @@ std::string sgbd::Diretorio::operacao (sgbd::Operacao operacao, int chave) {
 
             // TO DO: Dividir o diretório se necessário.
 
+            // Formato "REM:x/<qtd de tuplas removidas>,<profundidade global>,<profundidade local>"
+            info = std::string("REM:") + std::to_string(chave) + '/' + std::to_string(quantTuplas) + ',' + std::to_string(this->getPG()) + ',' + std::to_string(this->referencias[indiceBucket].pl);
+
         } else {
 
             quantTuplas = bucket->buscar(chave);
 
             // Formato "BUS:x/<quantidade de tuplas selecionadas>"
-            info = std::string("BUS:") + std::to_string(chave) + std::string("/") + std::to_string(quantTuplas);
+            info = std::string("BUS:") + std::to_string(chave) + '/' + std::to_string(quantTuplas);
 
         }
 
