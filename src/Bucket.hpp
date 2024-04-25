@@ -2,13 +2,17 @@
 #define BUCKET_HPP_
 
 #include <vector>
+#include <fstream>
+#include <string>
+#include <sstream>
+#include <cmath>
 
 namespace sgbd {
 
     struct EntradaBucket {
 
-        int chave;
-        int id;
+        int chave; /*Chave de Pesquisa (Valor Indexado) -> ANO*/
+        int id; /*id Pedido -> Chave Primária*/
 
     };
 
@@ -17,7 +21,7 @@ namespace sgbd {
         private:
 
             std::size_t ponteiro; // Ponteiro para o bucket na memória externa
-            std::vector<sgbd::EntradaBucket> entradas; // Entradas de dados
+            std::vector<sgbd::EntradaBucket> entradas; // Entradas de dados -> Máximo 3 por Bucket
             bool dirty; // Varíavel de controle para alterações no bucket
 
         public:

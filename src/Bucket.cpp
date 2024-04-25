@@ -4,7 +4,41 @@ sgbd::Bucket::Bucket () { }
 
 sgbd::Bucket::Bucket (std::size_t ponteiro) {
 
-    // TO DO
+    this->ponteiro = ponteiro;
+
+    std::ifstream arq(std::to_string(ponteiro) + ".txt");
+
+    if (arq) {
+
+        this->dirty = false;
+
+        //Ler as entradas do arquivo para as entradas do bucket (MAX 3 p/ arquivo)
+        std::string linha;
+        while (std::getline(arq, linha)) {
+            
+            EntradaBucket tmp;
+
+            std::istringstream iss(linha);
+            std::string token;
+
+            std::getline(iss, token, ',');
+            tmp.id = std::stoi(token);
+
+            std::getline(iss, token);
+            tmp.chave = std::stoi(token);
+
+            this->entradas.push_back(tmp);
+
+        }
+    }
+    else {
+        //Se o arquivo não existir...
+
+        this->dirty = true;
+
+    }
+
+    arq.close();
 
 }
 
@@ -93,6 +127,14 @@ std::size_t sgbd::Bucket::buscar (int chave) {
 
 void sgbd::Bucket::escreverArquivo () {
 
-    // TO DO
+    if (this->dirty) {
+        std::ofstream arq((std::to_string(this->ponteiro) + ".txt"), std::ios::out);
 
+        for (int i = 0; i < this->entradas.size(); i++) {
+            //Escrever linha a linha em formato .csv
+            arq << this->entradas[i].id << "," << this->entradas[i].chave << "\n";
+        }
+
+        arq.close();
+    }
 }
