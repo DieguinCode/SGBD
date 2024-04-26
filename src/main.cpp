@@ -3,10 +3,14 @@
 #include <sstream>
 #include <string>
 #include <stdexcept>
+#include <filesystem>
 
 #include "Compra.hpp"
 #include "Bucket.hpp"
 #include "Diretorio.hpp"
+
+// Cria a pasta de buckets.
+void criarPastaBuckets ();
 
 int main(int argc, char* argv[]) {
 
@@ -25,13 +29,13 @@ int main(int argc, char* argv[]) {
 
         if (!arquivoInput) {
             
-            throw std::runtime_error("Erro ao abrir o arquivo de entrada!");
+            throw std::runtime_error("Não foi possível abrir o arquivo de entrada!");
         
         }
 
         if (!arquivoOutput) {
 
-            throw std::runtime_error("Erro ao abrir o arquivo de saída! Tente novamente.");
+            throw std::runtime_error("Não foi possível abrir o arquivo de saída! Tente novamente.");
 
         }
 
@@ -65,7 +69,10 @@ int main(int argc, char* argv[]) {
         }
 
         // Cria o diretório
-        sgbd::Diretorio diretorio(pg);
+        sgbd::Diretorio diretorio(pg, pg);
+
+        // Cria a pasta de buckets.
+        criarPastaBuckets();
 
         // Insere a primeira linha do arquivo de saída.
         arquivoOutput << linha << std::endl;
@@ -97,7 +104,7 @@ int main(int argc, char* argv[]) {
 
             } else {
 
-                throw std::runtime_error(std::string("Erro de sintaxe na linha ") + std::to_string(numLinha) + " do arquivo de entrada!");
+                throw std::runtime_error(std::string("Sintaxe inválida na linha ") + std::to_string(numLinha) + " do arquivo de entrada!");
 
             }
 
@@ -119,5 +126,28 @@ int main(int argc, char* argv[]) {
     arquivoOutput.close();
 
     return EXIT_SUCCESS;
+
+}
+
+void criarPastaBuckets () {
+
+    // Checa se já existe uma pasta de buckets criada.
+    if (std::filesystem::exists("buckets/")) {
+
+        // Apaga a pasta já existente.
+        if (!std::filesystem::remove_all("buckets/")) {
+
+            throw std::runtime_error("Não foi possível apagar a pasta de buckets já existente.");
+
+        }
+
+    }
+
+    // Cria uma nova pasta de buckets.
+    if (!std::filesystem::create_directory("buckets/")) {
+
+        throw std::runtime_error("Não foi possível criar a pasta de buckets.");
+
+    }
 
 }

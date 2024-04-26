@@ -6,13 +6,19 @@
 #include "Bucket.hpp"
 #include "Compra.hpp"
 
-sgbd::Diretorio::Diretorio (std::size_t pg, std::string csv) : arquivoCSV(csv) {
+sgbd::Diretorio::Diretorio (std::size_t pg, std::size_t pl, std::string csv) : arquivoCSV(csv) {
+
+    if (pl > pg) {
+
+        throw std::invalid_argument("O valor de PL inicial do diretório é maior que o valor de PG inicial!");
+
+    }
 
     this->pg = pg;
-    this->referencias = std::vector<sgbd::EntradaDiretorio>(std::pow(2, pg), {1, 0});
+    this->referencias = std::vector<sgbd::EntradaDiretorio>(std::pow(2, pg), {pl, 0});
     for (std::size_t i = 0; i < this->referencias.size(); i++) {
 
-        this->referencias[i].ponteiro = i;
+        this->referencias[i].ponteiro = i & ((std::size_t) (1 << pl) - 1);
 
     }
 
@@ -33,13 +39,14 @@ sgbd::EntradaDiretorio sgbd::Diretorio::operator[] (std::size_t i) const {
 void sgbd::Diretorio::duplicar () {
 
     std::size_t tamanhoOriginal = this->referencias.size();
-    std::size_t valorASerSomado = 1 << pg;
 
     for (std::size_t i = 0; i < tamanhoOriginal; i++) {
 
         this->referencias.push_back(referencias[i]);
 
     }
+
+    this->pg++;
 
 }
 
@@ -65,7 +72,7 @@ std::string sgbd::Diretorio::operacao (sgbd::Operacao operacao, int chave) {
         std::ifstream arquivo(this->arquivoCSV);
         if (!arquivo) {
 
-            throw std::runtime_error(std::string("Erro ao abrir o arquivo CSV: ") + this->arquivoCSV);
+            throw std::runtime_error(std::string("Não foi possível abrir o arquivo CSV: ") + this->arquivoCSV);
 
         }
 
@@ -93,6 +100,12 @@ std::string sgbd::Diretorio::operacao (sgbd::Operacao operacao, int chave) {
         // Fecha o arquivo
         arquivo.close();
 
+        if (novasEntradasBucket.size() > 3) {
+
+            throw std::runtime_error(std::string("Há mais de 3 registros com ano=") + std::to_string(novasEntradasBucket[0].chave) + " no arquivo CSV!");
+
+        }
+
         // Traz o bucket para a memória principal.
         sgbd::Bucket* bucket = new Bucket(this->referencias[indiceBucket].ponteiro);
 
@@ -113,19 +126,19 @@ std::string sgbd::Diretorio::operacao (sgbd::Operacao operacao, int chave) {
                 const std::size_t ponteiroAtual = this->referencias[indiceBucket].ponteiro;
 
                 // Novo ponteiro que apontará para a imagem dividida do bucket.
-                const std::size_t ponteiroNovo = this->referencias[indiceBucket].ponteiro + std::pow(2, this->referencias[indiceBucket].pl);
+                const std::size_t ponteiroNovo = ponteiroAtual + std::pow(2, this->referencias[indiceBucket].pl);
 
                 // Entradas que serão movidas para a imagem dividida do bucket.
                 std::vector<sgbd::EntradaBucket> entradasRedistribuicao;
 
                 // Incrementa PLs de indices que apontam para o ponteiro atual e troca seus ponteiros se necessário.
-                for (std::size_t indDir; indDir < this->referencias.size(); indDir++) {
+                for (std::size_t indDir = 0; indDir < this->referencias.size(); indDir++) {
 
                     if (this->referencias[indDir].ponteiro == ponteiroAtual) {
 
                         this->referencias[indDir].pl++;
 
-                        if (indDir & ((1 << this->referencias[indDir].pl) - 1) != ponteiroAtual) {
+                        if ((indDir & ((1 << this->referencias[indDir].pl) - 1)) != ponteiroAtual) {
 
                             this->referencias[indDir].ponteiro = ponteiroNovo;
                             
@@ -136,11 +149,13 @@ std::string sgbd::Diretorio::operacao (sgbd::Operacao operacao, int chave) {
                 }
 
                 // Guarda as entradas que serão redistribuídas para a imagem dividida.
-                for (std::size_t j = 0; j < bucket->getEntradas().size(); j++) {
+                for (std::size_t j = 1; j <= bucket->getEntradas().size(); j++) { // O iterador começa do 1 porque ele pode ser decrementado e o std::size_t não representa números negativos.
 
-                    if (this->hash(bucket->getEntradas()[j].chave) & ((1 << this->referencias[indiceBucket].pl) - 1) == ponteiroNovo) {
+                    // Checa se a entrada deve ser movida para o bucket que o ponteiro novo aponta.
+                    if ((this->hash(bucket->getEntradas()[j - 1].chave) & ((1 << this->referencias[indiceBucket].pl) - 1)) == ponteiroNovo) {
 
-                        entradasRedistribuicao.push_back(bucket->removeEntrada(j));
+                        entradasRedistribuicao.push_back(bucket->removeEntrada(j - 1));
+                        j--;  // Volta o iterador para não pular 1 elemento do vetor "entradasRedistribuicao", já que o tamanho máximo do iterador diminuiu com a diminuição do vetor em si.
 
                     }
 
@@ -169,6 +184,15 @@ std::string sgbd::Diretorio::operacao (sgbd::Operacao operacao, int chave) {
 
                 }
 
+                // Se necessário, muda o bucket no qual a chave deve ser inserida.
+                if (this->hash(chave) != indiceBucket) {
+
+                    delete bucket;
+                    indiceBucket = this->hash(chave);
+                    bucket = new Bucket(this->referencias[indiceBucket].ponteiro);
+
+                }
+
                 // Volta o iterador para tentar a inserção novamente.
                 i--;
 
@@ -179,8 +203,15 @@ std::string sgbd::Diretorio::operacao (sgbd::Operacao operacao, int chave) {
         // Formato "INC:x/<profundidade global>,<profundidade local>"
         info = std::string("INC:") + std::to_string(chave) + '/' + std::to_string(this->getPG()) + ',' + std::to_string(this->referencias[indiceBucket].pl);
 
-        // Caso o diretório tenha sido duplicado, adiciona uma linha no formato "DUP_DIR:/<profundidade global>,<profundidade local>"
-        info = info + "\nDUP_DIR:/" + std::to_string(this->getPG()) + ',' + std::to_string(this->referencias[indiceBucket].pl);
+        if (duplicouDir) {
+
+            // Caso o diretório tenha sido duplicado, adiciona uma linha no formato "DUP_DIR:/<profundidade global>,<profundidade local>"
+            info = info + "\nDUP_DIR:/" + std::to_string(this->getPG()) + ',' + std::to_string(this->referencias[indiceBucket].pl);
+
+        }
+
+        // Tira o bucket da memória principal.
+        delete bucket;
 
     } else {
 

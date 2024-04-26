@@ -29,7 +29,7 @@ namespace sgbd {
 
         public:
 
-            Diretorio (std::size_t pg = 1, std::string csv = "compras.csv");
+            Diretorio (std::size_t pg = 1, std::size_t pl = 1, std::string csv = "compras.csv");
 
             std::size_t getPG () const;
 
