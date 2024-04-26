@@ -1,2 +1,6 @@
 .vscode/
 main
+build/
+in.txt
+out.txt
+buckets/
